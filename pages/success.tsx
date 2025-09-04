@@ -1,57 +1,68 @@
-import Stripe from "stripe";
 import type { GetServerSideProps } from "next";
 
 type Line = { name: string; quantity: number; amountSubtotal: number };
-type Props = {
-  orderIdShort: string;
-  amountTotal: number;
-  currency: string;
-  lines: Line[];
+type Props =
+  | { ok: true; orderIdShort: string; amountTotal: number; currency: string; lines: Line[] }
+  | { ok: false }; // si algo falla, no rompemos la página
+
+export const getServerSideProps: GetServerSideProps<Props> = async ({ query }) => {
+  const sessionId = typeof query.session_id === "string" ? query.session_id : null;
+  if (!sessionId) return { props: { ok: false } };
+
+  try {
+    // Import lazy para que solo se cargue en el servidor
+    const { default: Stripe } = await import("stripe");
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+      apiVersion: "2023-10-16",
+    });
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ["line_items"],
+    });
+
+    const currency = (session.currency || "usd").toUpperCase();
+    const amountTotal = (session.amount_total ?? 0) / 100;
+
+    const lines: Line[] =
+      (session as any).line_items?.data?.map((li: any) => ({
+        name: li.description as string,
+        quantity: li.quantity ?? 1,
+        amountSubtotal: (li.amount_subtotal ?? 0) / 100,
+      })) || [];
+
+    const last8 = sessionId.replace("cs_", "").slice(-8).toUpperCase();
+    const orderIdShort = `SN-${last8}`;
+
+    return {
+      props: { ok: true, orderIdShort, amountTotal, currency, lines },
+    };
+  } catch (err) {
+    // Si falla (clave Stripe ausente, id inválido, etc.), no tiramos 500
+    console.error("Success SSR error:", err);
+    return { props: { ok: false } };
+  }
 };
 
-export const getServerSideProps: GetServerSideProps<Props> = async ({ query, req }) => {
-  const sessionId = typeof query.session_id === "string" ? query.session_id : null;
-
-  if (!sessionId) {
-    return {
-      redirect: { destination: "/", permanent: false },
-    };
+export default function Success(props: Props) {
+  if (!props.ok) {
+    // Vista simple si no pudimos consultar Stripe (evitamos 500)
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="card text-center">
+          <h1 className="text-3xl font-bold mb-2">¡Pago exitoso!</h1>
+          <p className="text-gray-400">
+            Gracias por tu compra en <span className="font-semibold">SANNATAN</span>.
+          </p>
+          <a href="/catalog" className="btn-primary mt-4 inline-block">
+            Volver al catálogo
+          </a>
+        </div>
+      </div>
+    );
   }
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-    apiVersion: "2023-10-16",
-  });
+  const { orderIdShort, amountTotal, currency, lines } = props;
 
-  // Traemos la sesión con detalle de line_items
-  const session = await stripe.checkout.sessions.retrieve(sessionId, {
-    expand: ["line_items"],
-  });
-
-  const currency = (session.currency || "usd").toUpperCase();
-  const amountTotal = (session.amount_total ?? 0) / 100;
-
-  const lines: Line[] =
-    session.line_items?.data.map((li: any) => ({
-      name: li.description as string,
-      quantity: li.quantity ?? 1,
-      amountSubtotal: (li.amount_subtotal ?? 0) / 100,
-    })) || [];
-
-  // Genera un id corto de pedido (ej: cs_abcd... -> ABCD1234)
-  const last8 = sessionId.replace("cs_", "").slice(-8).toUpperCase();
-  const orderIdShort = `SN-${last8}`;
-
-  return {
-    props: {
-      orderIdShort,
-      amountTotal,
-      currency,
-      lines,
-    },
-  };
-};
-
-export default function Success({ orderIdShort, amountTotal, currency, lines }: Props) {
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="card max-w-xl text-center">
