@@ -1,4 +1,4 @@
-import type { NextApiRequest, NextApiResponse } from "next";
+import { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -6,39 +6,43 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   try {
-    const { items } = req.body as {
-      items: { name: string; price: number; quantity?: number }[];
-    };
-    if (!items?.length) return res.status(400).json({ error: "Items missing" });
+    const items = req.body.items;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      console.error("❌ Items missing or invalid", items);
+      return res.status(400).json({ error: "Items missing" });
+    }
 
-    const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = items.map((i) => ({
-      quantity: i.quantity ?? 1,
+    const line_items = items.map((item: any) => ({
+      quantity: item.quantity || 1,
       price_data: {
         currency: "usd",
-        product_data: { name: i.name },
-        unit_amount: Math.round(i.price * 100),
+        product_data: { name: item.name },
+        unit_amount: Math.round(item.price * 100),
       },
     }));
 
-    const origin =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      (req.headers.origin as string) ||
-      "http://localhost:3000";
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || req.headers.origin || "http://localhost:3000";
+
+    console.log("✅ Creating session with origin:", origin);
 
     const session = await stripe.checkout.sessions.create({
-      mode: "payment",
       payment_method_types: ["card"],
+      mode: "payment",
       line_items,
       success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/cancel`,
+      cancel_url: `${origin}/catalog`,
     });
 
+    console.log("✅ Stripe session created:", session.id);
+
     return res.status(200).json({ url: session.url });
-  } catch (err: any) {
-    console.error("Stripe error:", err);
-    return res.status(500).json({ error: err.message });
+  } catch (error: any) {
+    console.error("❌ Stripe API error:", error.message);
+    return res.status(500).json({ error: error.message });
   }
 }
