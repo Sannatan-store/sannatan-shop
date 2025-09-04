@@ -1,6 +1,5 @@
-
 import { motion } from "framer-motion";
-import Link from "next/link";
+import { useState } from "react";
 
 type Product = { id: number; name: string; price: number; image: string };
 
@@ -11,6 +10,26 @@ const products: Product[] = [
 ];
 
 export default function Catalog() {
+  const [loadingId, setLoadingId] = useState<number | null>(null);
+
+  const handleBuy = async (p: Product) => {
+    try {
+      setLoadingId(p.id);
+      const res = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: [{ name: p.name, price: p.price, quantity: 1 }] }),
+      });
+      const data = await res.json();
+      if (data?.url) window.location.href = data.url; // REDIRIGE A STRIPE
+      else alert("No se pudo crear la sesión de pago.");
+    } catch {
+      alert("Error creando la sesión de pago.");
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen p-8">
       <h1 className="text-4xl font-bold mb-6">Catálogo</h1>
@@ -23,11 +42,18 @@ export default function Catalog() {
                 <h2 className="text-xl font-semibold">{p.name}</h2>
                 <p className="text-gray-400">${p.price}</p>
               </div>
-              <Link href="/checkout" className="btn-primary">Comprar</Link>
+              {/* ⚠️ Asegúrate de que NO quede ningún <Link href="/checkout" /> */}
+              <button
+                onClick={() => handleBuy(p)}
+                className="btn-primary"
+                disabled={loadingId === p.id}
+              >
+                {loadingId === p.id ? "Redirigiendo..." : "Comprar"}
+              </button>
             </div>
           </motion.div>
         ))}
       </div>
-    </div>
-  );
-}
+
+      <div className="mt-8 text-sm text-gray-500">
+        Tarjeta de prueba: <code>4242 4242 4242 4242</code>, fecha futura, CVC cualquiera
