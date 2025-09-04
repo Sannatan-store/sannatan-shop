@@ -21,8 +21,11 @@ export default function Catalog() {
         body: JSON.stringify({ items: [{ name: p.name, price: p.price, quantity: 1 }] }),
       });
       const data = await res.json();
-      if (data?.url) window.location.href = data.url; // REDIRIGE A STRIPE
-      else alert("No se pudo crear la sesión de pago.");
+      if (data?.url) {
+        window.location.href = data.url; // Redirige a Stripe Checkout
+      } else {
+        alert("No se pudo crear la sesión de pago.");
+      }
     } catch {
       alert("Error creando la sesión de pago.");
     } finally {
@@ -42,7 +45,7 @@ export default function Catalog() {
                 <h2 className="text-xl font-semibold">{p.name}</h2>
                 <p className="text-gray-400">${p.price}</p>
               </div>
-              {/* ⚠️ Asegúrate de que NO quede ningún <Link href="/checkout" /> */}
+              {/* Asegúrate de NO tener ningún <Link href="/checkout" /> */}
               <button
                 onClick={() => handleBuy(p)}
                 className="btn-primary"
@@ -56,4 +59,8 @@ export default function Catalog() {
       </div>
 
       <div className="mt-8 text-sm text-gray-500">
-        Tarjeta de prueba: <code>4242 4242 4242 4242</code>, fecha futura, CVC cualquiera
+        Tarjeta de prueba: <code>4242 4242 4242 4242</code>, fecha futura, CVC cualquiera.
+      </div>
+    </div>
+  );
+}
