@@ -22,7 +22,7 @@ export default function Catalog() {
       });
       const data = await res.json();
       if (data?.url) {
-        window.location.href = data.url; // Redirige a Stripe Checkout
+        window.location.href = data.url; // Redirige a Stripe
       } else {
         alert("No se pudo crear la sesión de pago.");
       }
@@ -45,7 +45,6 @@ export default function Catalog() {
                 <h2 className="text-xl font-semibold">{p.name}</h2>
                 <p className="text-gray-400">${p.price}</p>
               </div>
-              {/* Asegúrate de NO tener ningún <Link href="/checkout" /> */}
               <button
                 onClick={() => handleBuy(p)}
                 className="btn-primary"
