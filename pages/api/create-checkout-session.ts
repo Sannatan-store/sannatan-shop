@@ -1,4 +1,5 @@
-import { NextApiRequest, NextApiResponse } from "next";
+// pages/api/create-checkout-session.ts
+import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -11,31 +12,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const items = req.body.items;
+    const items = (req.body as any)?.items;
+
     if (!items || !Array.isArray(items) || items.length === 0) {
       console.error("❌ Items missing or invalid", items);
       return res.status(400).json({ error: "Items missing" });
     }
 
-    const line_items = items.map((item: any) => ({
-      quantity: item.quantity || 1,
+    const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = items.map((item: any) => ({
+      quantity: item.quantity ?? 1,
       price_data: {
         currency: "usd",
         product_data: { name: item.name },
-        unit_amount: Math.round(item.price * 100),
+        unit_amount: Math.round(item.price * 100), // Stripe en centavos
       },
     }));
 
-    const origin = process.env.NEXT_PUBLIC_SITE_URL || req.headers.origin || "http://localhost:3000";
+    const origin =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      (req.headers.origin as string) ||
+      "http://localhost:3000";
 
     console.log("✅ Creating session with origin:", origin);
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
       mode: "payment",
+      payment_method_types: ["card"],
       line_items,
       success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/catalog`,
+      cancel_url: `${origin}/cancel`, // o `${origin}/catalog` si prefieres
     });
 
     console.log("✅ Stripe session created:", session.id);
