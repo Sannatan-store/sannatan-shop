@@ -1,8 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 
+// Usa la versión que soporta tu SDK instalado (evita el error de tipos)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2024-06-20",
+  apiVersion: "2023-10-16",
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -19,12 +20,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Items missing" });
     }
 
+    // Stripe usa centavos -> 40 USD = 4000
     const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = items.map((i) => ({
       quantity: i.quantity ?? 1,
       price_data: {
         currency: "usd",
         product_data: { name: i.name },
-        // Stripe usa CENTAVOS → 40 USD = 4000
         unit_amount: Math.round(i.price * 100),
       },
     }));
@@ -48,4 +49,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: err.message });
   }
 }
-
